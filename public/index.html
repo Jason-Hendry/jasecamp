@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JaseCamp</title>
+
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css">
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
+            integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS"
+            crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/firebasejs/3.2.0/firebase.js"></script>
+    <script>
+        // Initialize Firebase
+        var config = {
+            apiKey: "AIzaSyAVrNo-BLFdMvXJCL8LyO6VNqlw7Q-Pae0",
+            authDomain: "jasecamp-9c009.firebaseapp.com",
+            databaseURL: "https://jasecamp-9c009.firebaseio.com",
+            storageBucket: "jasecamp-9c009.appspot.com",
+        };
+        firebase.initializeApp(config);
+    </script>
+
+    <script type="text/javascript">
+
+        function guid() {
+            function s4() {
+                return Math.floor((1 + Math.random()) * 0x10000)
+                        .toString(16)
+                        .substring(1);
+            }
+
+            return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+                    s4() + '-' + s4() + s4() + s4();
+        }
+
+        /**
+         * Function called when clicking the Login/Logout button.
+         */
+        // [START buttoncallback]
+        function toggleSignIn() {
+            if (!firebase.auth().currentUser) {
+                var provider = new firebase.auth.GoogleAuthProvider();
+                provider.addScope('https://www.googleapis.com/auth/plus.login');
+                firebase.auth().signInWithPopup(provider).then(function (result) {
+                    var token = result.credential.accessToken;
+                    var user = result.user;
+                    document.getElementById('quickstart-oauthtoken').textContent = token;
+                }).catch(function (error) {
+                    var errorCode = error.code;
+                    var errorMessage = error.message;
+                    var email = error.email;
+                    var credential = error.credential;
+                    if (errorCode === 'auth/account-exists-with-different-credential') {
+                        alert('You have already signed up with a different auth provider for that email.');
+                    } else {
+                        console.error(error);
+                    }
+                });
+            } else {
+                console.log('Sign Out');
+                firebase.auth().signOut();
+            }
+            document.getElementById('quickstart-sign-in').disabled = true;
+        }
+        /**
+         * initApp handles setting up the Firebase context and registering
+         * callbacks for the auth status.
+         *
+         * The core initialization is in firebase.App - this is the glue class
+         * which stores configuration. We provide an app name here to allow
+         * distinguishing multiple app instances.
+         *
+         * This method also registers a listener with firebase.auth().onAuthStateChanged.
+         * This listener is called when the user is signed in or out, and that
+         * is where we update the UI.
+         *
+         * When signed in, we also authenticate to the Firebase Realtime Database.
+         */
+        function initApp() {
+            firebase.auth().onAuthStateChanged(function (user) {
+                if (user) {
+                    //$('#login').hide();
+                    $('#quickstart-sign-in').text('Sign Out - '+user.displayName)
+                    $('#projects').show();
+
+                    // User is signed in.
+                    var displayName = user.displayName;
+                    var email = user.email;
+                    var emailVerified = user.emailVerified;
+                    var photoURL = user.photoURL;
+                    var isAnonymous = user.isAnonymous;
+                    var uid = user.uid;
+                    var refreshToken = user.refreshToken;
+                    var providerData = user.providerData;
+                    document.getElementById('quickstart-sign-in-status').textContent = 'Signed in';
+                    document.getElementById('quickstart-sign-in').textContent = 'Sign out';
+                    document.getElementById('quickstart-account-details').textContent = JSON.stringify({
+                        displayName: displayName,
+                        email: email,
+                        emailVerified: emailVerified,
+                        photoURL: photoURL,
+                        isAnonymous: isAnonymous,
+                        uid: uid,
+                        refreshToken: refreshToken,
+                        providerData: providerData
+                    }, null, '  ');
+
+                } else {
+                    // User is signed out.
+                    $('#quickstart-sign-in').text('Sign In with Google')
+                    //$('#login').show();
+                    $('#projects').hide();
+                }
+                document.getElementById('quickstart-sign-in').disabled = false;
+            });
+            $('#quickstart-sign-in').on('click', toggleSignIn, false);
+        }
+        $(document).ready(function () {
+            initApp();
+        });
+    </script>
+
+</head>
+<body>
+
+<div class="container">
+    <div id="login">
+        <button disabled class="mdl-button mdl-js-button mdl-button--raised" id="quickstart-sign-in">Sign in with
+            Google
+        </button>
+    </div>
+    <div id="projects">
+        <h1>JaseCamp</h1>
+
+        <table class="table table-stripped">
+            <thead>
+            <tr>
+                <th>Project</th>
+                <th>Delivery Date</th>
+                <th>Internal Date</th>
+                <th>Internal Deliverable</th>
+                <th>Who</th>
+                <th>Comms</th>
+            </tr>
+            </thead>
+        </table>
+    </div>
+</div>
+
+</body>
+</html>
