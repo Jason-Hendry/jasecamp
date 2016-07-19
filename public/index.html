@@ -8,6 +8,7 @@
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet"
           integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
     <link href='https://fonts.googleapis.com/css?family=Bitter:700' rel='stylesheet' type='text/css'>
+    <script src="https://use.fontawesome.com/f5c273faf6.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
@@ -15,40 +16,96 @@
             crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/3.2.0/firebase.js"></script>
     <script>
-        // Initialize Firebase
         var config = {
             apiKey: "AIzaSyAVrNo-BLFdMvXJCL8LyO6VNqlw7Q-Pae0",
             authDomain: "jasecamp-9c009.firebaseapp.com",
             databaseURL: "https://jasecamp-9c009.firebaseio.com",
             storageBucket: "jasecamp-9c009.appspot.com",
         };
+        // Initialize Firebase
         firebase.initializeApp(config);
+
         //console.log(firebase.database().ref('team').push({'name':'Portable','projects':[]}));
 
         // TODO: Replace hardcorded team with team from '/access' object
-        var projects =firebase.database().ref('team/-KN-RchlyeUsxGN-Zkvb/projects');
+        var team = '-KN-RchlyeUsxGN-Zkvb';
+        var teamProjects = firebase.database().ref('team/' + team + '/projects');
 
-        projects.on('child_added', function() {
-            console.log('New Project');
+        var project = firebase.database().ref('project');
+
+        var columns = [
+            {key: 'name', label: 'Project'},
+            {key: 'delivery_date', label: 'Delivery Date', type: 'date'},
+            {key: 'internal_date', label: 'Internal Date', type: 'date'},
+            {key: 'internal_deliverable', label: 'Internal Devliverable'},
+            {key: 'who', label: 'Who', type: 'users'},
+            {key: 'comms', label: 'Comms'}
+        ];
+
+        function getIndexByKey(key) {
+            for (var i = 0; i < columns.length; i++) {
+                if (key == columns[i].key) {
+                    return i;
+                }
+            }
+            return null;
+        }
+
+        teamProjects.on('child_added', function (snapshot, teamProjectKey) {
+            console.log('Added Project');
+            key = snapshot.val();
+            var $row = $('<tr id="' + key + '"><td></td><td></td><td></td><td></td><td></td><td></td></tr>');
+            $('#project-list').append($row);
+
+            firebase.database().ref('project/' + key).on('value', function (projectSnapshot) {
+                var projectData = projectSnapshot.val();
+                console.log('Project Value', key, projectSnapshot.val());
+                for (i in projectData) {
+                    if (projectData.hasOwnProperty(i)) {
+                        var idx = getIndexByKey(i);
+                        $($row.find('td')[idx]).text(projectData[i]);
+                    }
+                }
+            });
+
+            firebase.database().ref('project/' + key).on('child_added', function (itemSnapshot, itemKey) {
+                console.log('Added Item');
+                var idx = getIndexByKey(itemKey);
+                $($row.find('td')[idx]).text(itemSnapshot.val());
+            });
+            firebase.database().ref('project/' + key).on('child_changed', function (itemSnapshot, itemKey) {
+                var idx = getIndexByKey(itemKey);
+                $($row.find('td')[idx]).text(itemSnapshot.val());
+            });
+            firebase.database().ref('project/' + key).on('child_removed', function (itemSnapshot, itemKey) {
+                var idx = getIndexByKey(itemKey);
+                $($row.find('td')[idx]).text('');
+            });
         });
-        projects.on('child_removed', function() {
+        teamProjects.on('child_removed', function (snapshot, key) {
             console.log('Project Removed');
+            $('#' + key).remove();
+            firebase.database().ref('project/' + key).off('child_added');
+            firebase.database().ref('project/' + key).off('child_changed');
+            firebase.database().ref('project/' + key).off('child_removed');
         });
 
         // Reload on version change to public displays
         var appVersion = null;
-        firebase.database().ref('version').on('value', function(snapshot) {
-            if(appVersion == null) {
+        firebase.database().ref('version').on('value', function (snapshot) {
+            if (appVersion == null) {
                 appVersion = snapshot.val();
                 $('#version').text(appVersion);
             } else {
-                document.location.href = document.location.href+'?'+snapshot.val();
+                document.location.href = document.location.href + '?' + snapshot.val();
             }
         });
 
-    </script>
+        function addProject(name) {
+            var ref = project.push({name: name});
+            teamProjects.push(ref.key);
+        }
 
-    <script type="text/javascript">
         /**
          * Function called when clicking the Login/Logout button.
          */
@@ -128,7 +185,6 @@
 //                    });
 
 
-
                 } else {
                     // User is signed out.
                     $('#quickstart-sign-in').text('Sign In with Google')
@@ -138,6 +194,46 @@
                 document.getElementById('quickstart-sign-in').disabled = false;
             });
             $('#quickstart-sign-in').on('click', toggleSignIn);
+
+            $('#btn-add-project').on('click', function () {
+                addProject($('#new-project').val());
+            });
+
+            $('#project-list').on('click', 'td', function () {
+                if($(this).find(':input').length) { return; }
+                var col = columns[$(this).index()];
+                var val = $(this).text();
+                if(col.type == 'users') {
+                    var input = $('<select><option value="">No One</option><option>Jason</option><option>Simon</option></select>');
+                    input.on('change', function() {
+                        var td = $(this).closest('td');
+                        var col = columns[td.index()];
+                        var projectKey = $(this).closest('tr').attr('id');
+                        console.log("Save", projectKey, col, $(this).val());
+                        firebase.database().ref('project/'+projectKey+'/'+col.key).set($(this).val());
+                    });
+                } else if(col.type == 'date') {
+                    var input = $('<input value="' + val + '" type="date">');
+                    input.datepicker({dateFormat:'yy-mm-dd', onSelect: function(date, obj) {
+                        var td = $(obj.input[0]).closest('td');
+                        var col = columns[td.index()];
+                        var projectKey = $(this).closest('tr').attr('id');
+                        firebase.database().ref('project/'+projectKey+'/'+col.key).set(date);
+                    }
+                    });
+                } else {
+                    var input = $('<input value="' + val + '">');
+                    input.on('blur', function() {
+                        var td = $(this).closest('td');
+                        var col = columns[td.index()];
+                        var projectKey = $(this).closest('tr').attr('id');
+                        console.log("Save", projectKey, col, $(this).val());
+                        firebase.database().ref('project/'+projectKey+'/'+col.key).set($(this).val());
+                    });
+                }
+                $(this).text('').append(input);
+                input.focus();
+            });
         }
         $(document).ready(function () {
             initApp();
@@ -154,20 +250,39 @@
             color: #fff;
             box-shadow: 0px -2px 21px #000;
         }
+
         header h1 {
             margin: 10px 0 12px 0;
             font-family: 'Bitter', serif;
             font-size: 32px;
         }
+
         header .btn {
             margin: 12px 0 0 0;
         }
+
         footer {
             position: fixed;
             bottom: 0px;
             left: 0px;
             right: 0px;
             background-color: #ECB200;
+        }
+
+        #btn-add-project {
+            background-color: #ADC800;
+            width: 32px;
+            height: 32px;
+            line-height: 32px;
+            color: #fff;
+            border-radius: 50%;
+            border: 0;
+        }
+
+        #new-project {
+            border-top: 0;
+            border-left: 0;
+            border-right: 0;
         }
     </style>
 </head>
@@ -199,6 +314,8 @@
             </tbody>
         </table>
     </div>
+    <input placeholder="Project Name" id="new-project">
+    <button id="btn-add-project" title="Add Project"><i class="fa fa-plus"></i></button>
 </div>
 <footer>
     <div class="container">
