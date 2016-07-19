@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css">
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet"
           integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <link href='https://fonts.googleapis.com/css?family=Bitter:700' rel='stylesheet' type='text/css'>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
@@ -22,21 +23,32 @@
             storageBucket: "jasecamp-9c009.appspot.com",
         };
         firebase.initializeApp(config);
+        //console.log(firebase.database().ref('team').push({'name':'Portable','projects':[]}));
+
+        // TODO: Replace hardcorded team with team from '/access' object
+        var projects =firebase.database().ref('team/-KN-RchlyeUsxGN-Zkvb/projects');
+
+        projects.on('child_added', function() {
+            console.log('New Project');
+        });
+        projects.on('child_removed', function() {
+            console.log('Project Removed');
+        });
+
+        // Reload on version change to public displays
+        var appVersion = null;
+        firebase.database().ref('version').on('value', function(snapshot) {
+            if(appVersion == null) {
+                appVersion = snapshot.val();
+                $('#version').text(appVersion);
+            } else {
+                document.location.href = document.location.href+'?'+snapshot.val();
+            }
+        });
+
     </script>
 
     <script type="text/javascript">
-
-        function guid() {
-            function s4() {
-                return Math.floor((1 + Math.random()) * 0x10000)
-                        .toString(16)
-                        .substring(1);
-            }
-
-            return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
-                    s4() + '-' + s4() + s4() + s4();
-        }
-
         /**
          * Function called when clicking the Login/Logout button.
          */
@@ -61,10 +73,8 @@
                     }
                 });
             } else {
-                console.log('Sign Out');
                 firebase.auth().signOut();
             }
-            document.getElementById('quickstart-sign-in').disabled = true;
         }
         /**
          * initApp handles setting up the Firebase context and registering
@@ -84,7 +94,7 @@
             firebase.auth().onAuthStateChanged(function (user) {
                 if (user) {
                     //$('#login').hide();
-                    $('#quickstart-sign-in').text('Sign Out - '+user.displayName)
+                    $('#quickstart-sign-in').text('Sign Out - ' + user.displayName)
                     $('#projects').show();
 
                     // User is signed in.
@@ -94,6 +104,9 @@
                     var photoURL = user.photoURL;
                     var isAnonymous = user.isAnonymous;
                     var uid = user.uid;
+
+                    //console.log(firebase.database().ref('access/'+user.uid).push('-KN-RchlyeUsxGN-Zkvb'));
+
                     var refreshToken = user.refreshToken;
                     var providerData = user.providerData;
                     document.getElementById('quickstart-sign-in-status').textContent = 'Signed in';
@@ -109,6 +122,13 @@
                         providerData: providerData
                     }, null, '  ');
 
+
+//                    firebase.database().ref('/access/'+user.uid).once('value').then(function(snapshot) {
+//                        console.log('data', snapshot.val())
+//                    });
+
+
+
                 } else {
                     // User is signed out.
                     $('#quickstart-sign-in').text('Sign In with Google')
@@ -117,25 +137,52 @@
                 }
                 document.getElementById('quickstart-sign-in').disabled = false;
             });
-            $('#quickstart-sign-in').on('click', toggleSignIn, false);
+            $('#quickstart-sign-in').on('click', toggleSignIn);
         }
         $(document).ready(function () {
             initApp();
         });
+        function version(v) {
+            firebase.database().ref('version').set(v);
+        }
     </script>
+    <style>
+        /*#ECB200, #CB2C1A, #ADC800*/
 
+        header {
+            background-color: #CB2C1A;
+            color: #fff;
+            box-shadow: 0px -2px 21px #000;
+        }
+        header h1 {
+            margin: 10px 0 12px 0;
+            font-family: 'Bitter', serif;
+            font-size: 32px;
+        }
+        header .btn {
+            margin: 12px 0 0 0;
+        }
+        footer {
+            position: fixed;
+            bottom: 0px;
+            left: 0px;
+            right: 0px;
+            background-color: #ECB200;
+        }
+    </style>
 </head>
 <body>
 
-<div class="container">
-    <div id="login">
-        <button disabled class="mdl-button mdl-js-button mdl-button--raised" id="quickstart-sign-in">Sign in with
+<header>
+    <div class="container">
+        <button disabled class="btn btn-default pull-right" id="quickstart-sign-in">Sign in with
             Google
         </button>
-    </div>
-    <div id="projects">
         <h1>JaseCamp</h1>
-
+    </div>
+</header>
+<div class="container">
+    <div id="projects">
         <table class="table table-stripped">
             <thead>
             <tr>
@@ -147,9 +194,17 @@
                 <th>Comms</th>
             </tr>
             </thead>
+            <tbody id="project-list">
+
+            </tbody>
         </table>
     </div>
 </div>
+<footer>
+    <div class="container">
+        <p>Version <span id="version"></span></p>
+    </div>
+</footer>
 
 </body>
 </html>
