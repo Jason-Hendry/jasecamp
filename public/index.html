@@ -8,6 +8,7 @@
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet"
           integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
     <link href='https://fonts.googleapis.com/css?family=Bitter:700' rel='stylesheet' type='text/css'>
+    <link href="vendor/tablesorter/themes/blue/style.css" rel='stylesheet' type='text/css'>
     <script src="https://use.fontawesome.com/f5c273faf6.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
@@ -15,6 +16,7 @@
             integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS"
             crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/3.2.0/firebase.js"></script>
+    <script src="vendor/tablesorter/jquery.tablesorter.min.js"></script>
     <script>
         var config = {
             apiKey: "AIzaSyAVrNo-BLFdMvXJCL8LyO6VNqlw7Q-Pae0",
@@ -51,6 +53,12 @@
             return null;
         }
 
+        function sortTable() {
+            $('#projects').trigger('update');
+            var sorting = [[0,0]];
+            $("#projects").trigger("sorton",[sorting]);
+        }
+
         teamProjects.on('child_added', function (snapshot, teamProjectKey) {
             console.log('Added Project');
             key = snapshot.val();
@@ -66,20 +74,27 @@
                         $($row.find('td')[idx]).text(projectData[i]);
                     }
                 }
+                sortTable();
             });
 
+            // TODO: Figure out why these aren't working
             firebase.database().ref('project/' + key).on('child_added', function (itemSnapshot, itemKey) {
-                console.log('Added Item');
                 var idx = getIndexByKey(itemKey);
+                console.log('Added Item', idx);
                 $($row.find('td')[idx]).text(itemSnapshot.val());
+                sortTable();
             });
             firebase.database().ref('project/' + key).on('child_changed', function (itemSnapshot, itemKey) {
                 var idx = getIndexByKey(itemKey);
+                console.log('Added Changed', idx, itemKey);
+
                 $($row.find('td')[idx]).text(itemSnapshot.val());
+                sortTable();
             });
             firebase.database().ref('project/' + key).on('child_removed', function (itemSnapshot, itemKey) {
                 var idx = getIndexByKey(itemKey);
                 $($row.find('td')[idx]).text('');
+                sortTable();
             });
         });
         teamProjects.on('child_removed', function (snapshot, key) {
@@ -148,6 +163,8 @@
          * When signed in, we also authenticate to the Firebase Realtime Database.
          */
         function initApp() {
+            $('#projects').tablesorter(); // Sort by name asc
+
             firebase.auth().onAuthStateChanged(function (user) {
                 if (user) {
                     //$('#login').hide();
@@ -189,7 +206,7 @@
                     // User is signed out.
                     $('#quickstart-sign-in').text('Sign In with Google')
                     //$('#login').show();
-                    $('#projects').hide();
+                    $('#projects').closest('div').hide();
                 }
                 document.getElementById('quickstart-sign-in').disabled = false;
             });
@@ -200,39 +217,55 @@
             });
 
             $('#project-list').on('click', 'td', function () {
-                if($(this).find(':input').length) { return; }
+                if ($(this).find(':input').length) {
+                    return;
+                }
                 var col = columns[$(this).index()];
                 var val = $(this).text();
-                if(col.type == 'users') {
-                    var input = $('<select><option value="">No One</option><option>Jason</option><option>Simon</option></select>');
-                    input.on('change', function() {
+                if (col.type == 'users') {
+                    var input = $('<select>' +
+                            '<option value="">No One</option>' +
+                            '<option>Jason</option>' +
+                            '<option>Simon</option>' +
+                            '<option>Andrew</option>' +
+                            '<option>Ellie</option>' +
+                            '<option>Zac</option>' +
+                            '<option>Georgi</option>' +
+                            '</select>');
+                    input.on('change', function () {
                         var td = $(this).closest('td');
                         var col = columns[td.index()];
                         var projectKey = $(this).closest('tr').attr('id');
                         console.log("Save", projectKey, col, $(this).val());
-                        firebase.database().ref('project/'+projectKey+'/'+col.key).set($(this).val());
+                        firebase.database().ref('project/' + projectKey + '/' + col.key).set($(this).val());
                     });
-                } else if(col.type == 'date') {
+                    $(this).text('').append(input);
+                    input.click();
+                } else if (col.type == 'date') {
                     var input = $('<input value="' + val + '" type="date">');
-                    input.datepicker({dateFormat:'yy-mm-dd', onSelect: function(date, obj) {
-                        var td = $(obj.input[0]).closest('td');
-                        var col = columns[td.index()];
-                        var projectKey = $(this).closest('tr').attr('id');
-                        firebase.database().ref('project/'+projectKey+'/'+col.key).set(date);
-                    }
+                    input.datepicker({
+                        dateFormat: 'yy-mm-dd', onSelect: function (date, obj) {
+                            var td = $(obj.input[0]).closest('td');
+                            var col = columns[td.index()];
+                            var projectKey = $(this).closest('tr').attr('id');
+                            firebase.database().ref('project/' + projectKey + '/' + col.key).set(date);
+                        }
                     });
+                    $(this).text('').append(input);
+                    input.focus();
                 } else {
-                    var input = $('<input value="' + val + '">');
-                    input.on('blur', function() {
+                    var input = $('<input>');
+                    input.on('blur', function () {
                         var td = $(this).closest('td');
                         var col = columns[td.index()];
                         var projectKey = $(this).closest('tr').attr('id');
                         console.log("Save", projectKey, col, $(this).val());
-                        firebase.database().ref('project/'+projectKey+'/'+col.key).set($(this).val());
+                        firebase.database().ref('project/' + projectKey + '/' + col.key).set($(this).val());
                     });
+                    $(this).text('').append(input);
+                    input.focus().val(val);
                 }
-                $(this).text('').append(input);
-                input.focus();
+
             });
         }
         $(document).ready(function () {
@@ -284,6 +317,10 @@
             border-left: 0;
             border-right: 0;
         }
+
+        td > input {
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -297,8 +334,8 @@
     </div>
 </header>
 <div class="container">
-    <div id="projects">
-        <table class="table table-stripped">
+    <div>
+        <table id="projects" class="table table-stripped">
             <thead>
             <tr>
                 <th>Project</th>
@@ -313,9 +350,9 @@
 
             </tbody>
         </table>
+        <input placeholder="Project Name" id="new-project">
+        <button id="btn-add-project" title="Add Project"><i class="fa fa-plus"></i></button>
     </div>
-    <input placeholder="Project Name" id="new-project">
-    <button id="btn-add-project" title="Add Project"><i class="fa fa-plus"></i></button>
 </div>
 <footer>
     <div class="container">
