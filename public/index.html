@@ -38,11 +38,20 @@
         var columns = [
             {key: 'name', label: 'Project'},
             {key: 'delivery_date', label: 'Delivery Date', type: 'date'},
+            {key: 'deliverable', label: 'Deliverable'},
             {key: 'internal_date', label: 'Internal Date', type: 'date'},
             {key: 'internal_deliverable', label: 'Internal Devliverable'},
             {key: 'who', label: 'Who', type: 'users'},
             {key: 'comms', label: 'Comms'}
         ];
+
+        function blankColumns() {
+            var c = [];
+            for(var i = 0;i<columns.length;i++) {
+                c.push($('<td></td>'));
+            }
+            return c;
+        }
 
         function getIndexByKey(key) {
             for (var i = 0; i < columns.length; i++) {
@@ -53,48 +62,130 @@
             return null;
         }
 
-        function sortTable() {
-            $('#projects').trigger('update');
-            var sorting = [[0,0]];
-            $("#projects").trigger("sorton",[sorting]);
+        var sortTimeout = null;
+
+        function sortTable(col) {
+            if(sortTimeout) {
+                clearTimeout(sortTimeout);
+            }
+//            sortTimeout = setTimeout(function() {
+                var sortColumn = [];
+                $('#project-list').find('td:nth-child(1)').each(function(){
+                    sortColumn.push([$(this).closest('tr').attr('id'), $(this).data().value]);
+                });
+                sortColumn.sort(function(a,b) {
+                    if(typeof a[1] != 'string') { return 1 };
+                    return a[1].localeCompare(b[1]);
+                });
+                var last = null
+                for(var i=0;i<sortColumn.length; i++) {
+                    var row = $('#'+sortColumn[i][0]);
+                    if(last != null) {
+                        last.after(row);
+                    } else {
+                        $('#project-list').prepend(row);
+                    }
+                    last = row;
+                }
+//            }, 1000);
+        }
+
+        function formatDate(dateStr) {
+            var d = new Date(Date.parse(dateStr));
+            return (['Mon','Tue','Wed','Thr','Fri','Sat','Sun'][d.getDay()])+
+                    ' '+d.getDate()+
+                    ' '+(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()])
+        }
+
+
+
+        function cellHtml(idx, value) {
+            var col = columns[idx];
+            var input = value;
+            if (col.type == 'users') {
+                input = $('<select>' +
+                        '<option value="'+value+'" selected>'+value+'</option>' +
+                        '<option value="">No One</option>' +
+                        '<option>Jason</option>' +
+                        '<option>Simon</option>' +
+                        '<option>Andrew</option>' +
+                        '<option>Ellie</option>' +
+                        '<option>Zac</option>' +
+                        '<option>Georgi</option>' +
+                        '</select>');
+                input.on('change', function () {
+                    var td = $(this).closest('td');
+                    var col = columns[td.index()];
+                    var projectKey = $(this).closest('tr').attr('id');
+                    console.log("Save", projectKey, col, $(this).val());
+                    firebase.database().ref('project/' + projectKey + '/' + col.key).set($(this).val());
+                });
+            } else if (col.type == 'date') {
+                var date = new Date(value);
+                input = $('<input value="' + formatDate(value) + '">');
+                input.datepicker({
+                    defaultDate: value,
+                    dateFormat: 'yy-mm-dd',
+                    onSelect: function (date, obj) {
+                        var td = $(obj.input[0]).closest('td');
+                        var col = columns[td.index()];
+                        var projectKey = $(this).closest('tr').attr('id');
+                        console.log('save', 'project/' + projectKey + '/' + col.key, date);
+                        firebase.database().ref('project/' + projectKey + '/' + col.key).set(date);
+                    }
+                });
+            } else {
+                input = $('<input value="'+value+'">');
+                input.on('change', function () {
+                    var td = $(this).closest('td');
+                    var col = columns[td.index()];
+                    var projectKey = $(this).closest('tr').attr('id');
+                    console.log("Save", projectKey, col, $(this).val());
+                    firebase.database().ref('project/' + projectKey + '/' + col.key).set($(this).val());
+                });
+            }
+            return input;
+        }
+
+        function updateCell($row, itemSnapshot) {
+            var idx = getIndexByKey(itemSnapshot.key);
+            $($row.find('td')[idx]).data('value', itemSnapshot.val());
+            $($row.find('td')[idx]).html('').append(cellHtml(idx, itemSnapshot.val()));
+            if(idx == 0) { sortTable() };
         }
 
         teamProjects.on('child_added', function (snapshot, teamProjectKey) {
             console.log('Added Project');
+
             key = snapshot.val();
-            var $row = $('<tr id="' + key + '"><td></td><td></td><td></td><td></td><td></td><td></td></tr>');
+            var $row = $('<tr id="' + key + '"></tr>').append(blankColumns());
             $('#project-list').append($row);
 
-            firebase.database().ref('project/' + key).on('value', function (projectSnapshot) {
-                var projectData = projectSnapshot.val();
-                console.log('Project Value', key, projectSnapshot.val());
-                for (i in projectData) {
-                    if (projectData.hasOwnProperty(i)) {
-                        var idx = getIndexByKey(i);
-                        $($row.find('td')[idx]).text(projectData[i]);
-                    }
-                }
-                sortTable();
-            });
+//            firebase.database().ref('project/' + key).once('value').then(function (projectSnapshot) {
+//                var projectData = projectSnapshot.val();
+//                console.log('Project Value', key, projectSnapshot.val());
+//                for (i in projectData) {
+//                    if (projectData.hasOwnProperty(i)) {
+//                        var idx = getIndexByKey(i);
+//                        $($row.find('td')[idx]).data('value',projectData[i]);
+//                        $($row.find('td')[idx]).append(cellHtml(idx, projectData[i]));
+//                    }
+//                }
+//                sortTable();
+//            });
 
             // TODO: Figure out why these aren't working
             firebase.database().ref('project/' + key).on('child_added', function (itemSnapshot, itemKey) {
-                var idx = getIndexByKey(itemKey);
-                console.log('Added Item', idx);
-                $($row.find('td')[idx]).text(itemSnapshot.val());
-                sortTable();
+                updateCell($row,itemSnapshot);
             });
-            firebase.database().ref('project/' + key).on('child_changed', function (itemSnapshot, itemKey) {
-                var idx = getIndexByKey(itemKey);
-                console.log('Added Changed', idx, itemKey);
-
-                $($row.find('td')[idx]).text(itemSnapshot.val());
-                sortTable();
+            firebase.database().ref('project/' + key).on('child_changed', function (itemSnapshot) {
+                updateCell($row,itemSnapshot);
             });
             firebase.database().ref('project/' + key).on('child_removed', function (itemSnapshot, itemKey) {
-                var idx = getIndexByKey(itemKey);
-                $($row.find('td')[idx]).text('');
-                sortTable();
+                var idx = getIndexByKey(itemSnapshot.key);
+                $($row.find('td')[idx]).data('value', '');
+                $($row.find('td')[idx]).html('').append(cellHtml(idx, ''));
+                if(idx == 0) { sortTable() };
             });
         });
         teamProjects.on('child_removed', function (snapshot, key) {
@@ -216,57 +307,57 @@
                 addProject($('#new-project').val());
             });
 
-            $('#project-list').on('click', 'td', function () {
-                if ($(this).find(':input').length) {
-                    return;
-                }
-                var col = columns[$(this).index()];
-                var val = $(this).text();
-                if (col.type == 'users') {
-                    var input = $('<select>' +
-                            '<option value="">No One</option>' +
-                            '<option>Jason</option>' +
-                            '<option>Simon</option>' +
-                            '<option>Andrew</option>' +
-                            '<option>Ellie</option>' +
-                            '<option>Zac</option>' +
-                            '<option>Georgi</option>' +
-                            '</select>');
-                    input.on('change', function () {
-                        var td = $(this).closest('td');
-                        var col = columns[td.index()];
-                        var projectKey = $(this).closest('tr').attr('id');
-                        console.log("Save", projectKey, col, $(this).val());
-                        firebase.database().ref('project/' + projectKey + '/' + col.key).set($(this).val());
-                    });
-                    $(this).text('').append(input);
-                    input.click();
-                } else if (col.type == 'date') {
-                    var input = $('<input value="' + val + '" type="date">');
-                    input.datepicker({
-                        dateFormat: 'yy-mm-dd', onSelect: function (date, obj) {
-                            var td = $(obj.input[0]).closest('td');
-                            var col = columns[td.index()];
-                            var projectKey = $(this).closest('tr').attr('id');
-                            firebase.database().ref('project/' + projectKey + '/' + col.key).set(date);
-                        }
-                    });
-                    $(this).text('').append(input);
-                    input.focus();
-                } else {
-                    var input = $('<input>');
-                    input.on('blur', function () {
-                        var td = $(this).closest('td');
-                        var col = columns[td.index()];
-                        var projectKey = $(this).closest('tr').attr('id');
-                        console.log("Save", projectKey, col, $(this).val());
-                        firebase.database().ref('project/' + projectKey + '/' + col.key).set($(this).val());
-                    });
-                    $(this).text('').append(input);
-                    input.focus().val(val);
-                }
-
-            });
+//            $('#project-list').on('click', 'td', function () {
+//                if ($(this).find(':input').length) {
+//                    return;
+//                }
+//                var col = columns[$(this).index()];
+//                var val = $(this).text();
+//                if (col.type == 'users') {
+//                    var input = $('<select>' +
+//                            '<option value="">No One</option>' +
+//                            '<option>Jason</option>' +
+//                            '<option>Simon</option>' +
+//                            '<option>Andrew</option>' +
+//                            '<option>Ellie</option>' +
+//                            '<option>Zac</option>' +
+//                            '<option>Georgi</option>' +
+//                            '</select>');
+//                    input.on('change', function () {
+//                        var td = $(this).closest('td');
+//                        var col = columns[td.index()];
+//                        var projectKey = $(this).closest('tr').attr('id');
+//                        console.log("Save", projectKey, col, $(this).val());
+//                        firebase.database().ref('project/' + projectKey + '/' + col.key).set($(this).val());
+//                    });
+//                    $(this).text('').append(input);
+//                    input.click();
+//                } else if (col.type == 'date') {
+//                    var input = $('<input value="' + val + '" type="date">');
+//                    input.datepicker({
+//                        dateFormat: 'yy-mm-dd', onSelect: function (date, obj) {
+//                            var td = $(obj.input[0]).closest('td');
+//                            var col = columns[td.index()];
+//                            var projectKey = $(this).closest('tr').attr('id');
+//                            firebase.database().ref('project/' + projectKey + '/' + col.key).set(date);
+//                        }
+//                    });
+//                    $(this).text('').append(input);
+//                    input.focus();
+//                } else {
+//                    var input = $('<input>');
+//                    input.on('blur', function () {
+//                        var td = $(this).closest('td');
+//                        var col = columns[td.index()];
+//                        var projectKey = $(this).closest('tr').attr('id');
+//                        console.log("Save", projectKey, col, $(this).val());
+//                        firebase.database().ref('project/' + projectKey + '/' + col.key).set($(this).val());
+//                    });
+//                    $(this).text('').append(input);
+//                    input.focus().val(val);
+//                }
+//
+//            });
         }
         $(document).ready(function () {
             initApp();
@@ -333,13 +424,13 @@
         <h1>JaseCamp</h1>
     </div>
 </header>
-<div class="container">
     <div>
         <table id="projects" class="table table-stripped">
             <thead>
             <tr>
                 <th>Project</th>
                 <th>Delivery Date</th>
+                <th>Delivable</th>
                 <th>Internal Date</th>
                 <th>Internal Deliverable</th>
                 <th>Who</th>
@@ -353,7 +444,6 @@
         <input placeholder="Project Name" id="new-project">
         <button id="btn-add-project" title="Add Project"><i class="fa fa-plus"></i></button>
     </div>
-</div>
 <footer>
     <div class="container">
         <p>Version <span id="version"></span></p>
